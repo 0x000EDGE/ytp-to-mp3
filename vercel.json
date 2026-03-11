@@ -1,0 +1,7 @@
+{
+    "functions": {
+        "api/mp3.js": {
+            "maxDuration": 60
+        }
+    }
+}
