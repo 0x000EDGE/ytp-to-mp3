@@ -1,23 +1,26 @@
 import { spawn } from "child_process";
-import path from "path";
+import pkg from "yt-dlp-exec";
 
 export const config = { api: { responseLimit: false } };
 
-export default function handler(req, res) {
+export default async function handler(req, res) {
     const url = req.query.url;
     if (!url) return res.status(400).send("Missing url");
 
+    const { ytDlp } = pkg; // On récupère yt-dlp depuis le package
+
     try {
-        // yt-dlp via spawn, compatible serverless Vercel
+        // yt-dlp via spawn → flux audio m4a
         const ytdlp = spawn("yt-dlp", [
             "-f",
             "bestaudio[ext=m4a]",
             "-o",
-            "-", // stdout
+            "-", // sortie vers stdout
             "--no-playlist",
             url,
         ]);
 
+        // ffmpeg → conversion mp3
         const ffmpeg = spawn("ffmpeg", [
             "-i",
             "pipe:0",
@@ -31,14 +34,15 @@ export default function handler(req, res) {
 
         ytdlp.stdout.pipe(ffmpeg.stdin);
 
+        // headers HTTP pour téléchargement
         res.setHeader("Content-Type", "audio/mpeg");
         res.setHeader("Content-Disposition", "attachment; filename=audio.mp3");
 
         ffmpeg.stdout.pipe(res);
 
         // logs pour debug
-        ffmpeg.stderr.on("data", (d) => console.log("ffmpeg:", d.toString()));
         ytdlp.stderr.on("data", (d) => console.log("yt-dlp:", d.toString()));
+        ffmpeg.stderr.on("data", (d) => console.log("ffmpeg:", d.toString()));
 
         ytdlp.on("error", (e) => {
             console.error("yt-dlp failed:", e);
